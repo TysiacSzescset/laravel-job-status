@@ -10,7 +10,7 @@
 ### 1. Install via Composer
 
 ```bash
-composer require imtigger/laravel-job-status
+composer require yannelli/laravel-job-status
 ```
 
 The package will be automatically discovered by Laravel.
@@ -21,14 +21,14 @@ The package will be automatically discovered by Laravel.
 php artisan migrate
 ```
 
-This will create the `job_statuses` table in your database.
+This will create the `job_statuses` and `job_status_histories` table in your database.
 
 ### 3. Publish Configuration (Optional)
 
 If you need to customize the configuration:
 
 ```bash
-php artisan vendor:publish --provider="Imtigger\LaravelJobStatus\LaravelJobStatusServiceProvider" --tag="config"
+php artisan vendor:publish --provider="Yannelli\LaravelJobStatus\LaravelJobStatusServiceProvider" --tag="config"
 ```
 
 This will create `config/job-status.php`.
@@ -38,7 +38,7 @@ This will create `config/job-status.php`.
 If you need to customize the migration:
 
 ```bash
-php artisan vendor:publish --provider="Imtigger\LaravelJobStatus\LaravelJobStatusServiceProvider" --tag="migrations"
+php artisan vendor:publish --provider="Yannelli\LaravelJobStatus\LaravelJobStatusServiceProvider" --tag="migrations"
 ```
 
 ## Advanced Configuration
@@ -61,7 +61,7 @@ By default, the job_id is captured when the job starts processing. To capture it
 ```php
 'providers' => [
     // ...
-    Imtigger\LaravelJobStatus\LaravelJobStatusBusServiceProvider::class,
+    Yannelli\LaravelJobStatus\LaravelJobStatusBusServiceProvider::class,
 ],
 ```
 
@@ -77,7 +77,7 @@ To make JobStatus updates visible immediately:
 'connections' => [
     // ... existing connections
     
-    'mysql-job-status' => [
+    'job-status' => [
         'driver' => 'mysql',
         'host' => env('DB_HOST', '127.0.0.1'),
         'port' => env('DB_PORT', '3306'),
@@ -93,18 +93,7 @@ To make JobStatus updates visible immediately:
 
 ```php
 return [
-    'database_connection' => 'mysql-job-status',
-    // ...
-];
-```
-
-### Custom Event Manager
-
-To use a different event manager (e.g., LegacyEventManager), update `config/job-status.php`:
-
-```php
-return [
-    'event_manager' => Imtigger\LaravelJobStatus\EventManagers\LegacyEventManager::class,
+    'database_connection' => 'job-status',
     // ...
 ];
 ```

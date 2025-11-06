@@ -6,17 +6,24 @@ namespace Yannelli\TrackJobStatus;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
 
 /**
  * @property int $id
  * @property string|null $job_id
+ * @property string|null $unique_id
+ * @property string|null $batch_id
+ * @property string|null $chain_id
  * @property string $type
  * @property string|null $queue
  * @property int $attempts
  * @property int $progress_now
  * @property int $progress_max
+ * @property int|null $total_jobs
+ * @property int|null $current_step
  * @property JobStatusEnum $status
+ * @property string|null $status_message
  * @property array|null $input
  * @property array|null $output
  * @property \Illuminate\Support\Carbon|null $created_at
@@ -30,6 +37,8 @@ use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
  * @property bool $is_finished
  * @property bool $is_queued
  * @property bool $is_retrying
+ * @property bool $is_batch
+ * @property bool $is_chain
  */
 class JobStatus extends Model
 {
@@ -37,12 +46,18 @@ class JobStatus extends Model
 
     protected array $fillable = [
         'job_id',
+        'unique_id',
+        'batch_id',
+        'chain_id',
         'type',
         'queue',
         'attempts',
         'progress_now',
         'progress_max',
+        'total_jobs',
+        'current_step',
         'status',
+        'status_message',
         'input',
         'output',
         'started_at',
@@ -62,6 +77,8 @@ class JobStatus extends Model
             'attempts' => 'integer',
             'progress_now' => 'integer',
             'progress_max' => 'integer',
+            'total_jobs' => 'integer',
+            'current_step' => 'integer',
         ];
     }
 
@@ -116,8 +133,92 @@ class JobStatus extends Model
         );
     }
 
+    protected function isBatch(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->batch_id !== null,
+        );
+    }
+
+    protected function isChain(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->chain_id !== null,
+        );
+    }
+
     public static function getAllowedStatuses(): array
     {
         return JobStatusEnum::values();
+    }
+
+    /**
+     * Get the history records for this job status.
+     *
+     * @return HasMany<JobStatusHistory>
+     */
+    public function histories(): HasMany
+    {
+        return $this->hasMany(JobStatusHistory::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all jobs in the same batch as this job.
+     *
+     * @return HasMany<JobStatus>
+     */
+    public function batchJobs(): HasMany
+    {
+        return $this->hasMany(static::class, 'batch_id', 'batch_id')
+            ->orderBy('current_step');
+    }
+
+    /**
+     * Get all jobs in the same chain as this job.
+     *
+     * @return HasMany<JobStatus>
+     */
+    public function chainJobs(): HasMany
+    {
+        return $this->hasMany(static::class, 'chain_id', 'chain_id')
+            ->orderBy('current_step');
+    }
+
+    /**
+     * Log the current status to the history table.
+     * Respects the 'track_history' configuration setting.
+     *
+     * @param array<string, mixed> $metadata Additional metadata to store with the history record
+     * @return void
+     */
+    public function logHistory(array $metadata = []): void
+    {
+        if (!config('job-status.track_history', true)) {
+            return;
+        }
+
+        $this->histories()->create([
+            'status' => $this->status,
+            'status_message' => $this->status_message,
+            'progress_now' => $this->progress_now,
+            'progress_max' => $this->progress_max,
+            'metadata' => $metadata,
+        ]);
+    }
+
+    /**
+     * Boot the model and register event listeners.
+     *
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (JobStatus $jobStatus): void {
+            if ($jobStatus->wasChanged('status') || $jobStatus->wasChanged('status_message')) {
+                $jobStatus->logHistory([
+                    'changed_fields' => $jobStatus->getChanges(),
+                ]);
+            }
+        });
     }
 }

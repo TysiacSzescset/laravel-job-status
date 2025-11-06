@@ -14,12 +14,18 @@ return new class extends Migration
         Schema::create('job_statuses', function (Blueprint $table): void {
             $table->id();
             $table->string('job_id')->index()->nullable();
+            $table->string('unique_id')->index()->nullable();
+            $table->string('batch_id')->index()->nullable();
+            $table->string('chain_id')->index()->nullable();
             $table->string('type')->index();
             $table->string('queue')->index()->nullable();
             $table->unsignedInteger('attempts')->default(0);
             $table->unsignedInteger('progress_now')->default(0);
             $table->unsignedInteger('progress_max')->default(0);
+            $table->unsignedInteger('total_jobs')->nullable();
+            $table->unsignedInteger('current_step')->nullable();
             $table->string('status', 16)->default(JobStatusEnum::QUEUED->value)->index();
+            $table->text('status_message')->nullable();
             $table->json('input')->nullable();
             $table->json('output')->nullable();
             $table->timestamps();

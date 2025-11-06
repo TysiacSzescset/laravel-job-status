@@ -8,6 +8,11 @@ use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Queue\Events\JobQueueing;
+use Illuminate\Queue\Events\JobQueued;
+use Illuminate\Queue\Events\JobReleasedAfterException;
+use Illuminate\Queue\Events\JobRetryRequested;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Support\Facades\Log;
 use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
 
@@ -23,7 +28,7 @@ class JobStatusUpdater
     }
 
     protected function updateEvent(
-        JobProcessing|JobProcessed|JobFailed|JobExceptionOccurred $event,
+        JobQueueing|JobQueued|JobProcessing|JobProcessed|JobFailed|JobExceptionOccurred|JobRetryRequested|JobReleasedAfterException|JobTimedOut $event,
         array $data
     ): void {
         $job = $this->parseJob($event);
@@ -62,7 +67,7 @@ class JobStatusUpdater
     }
 
     protected function parseJob(
-        JobProcessing|JobProcessed|JobFailed|JobExceptionOccurred $event
+        JobQueueing|JobQueued|JobProcessing|JobProcessed|JobFailed|JobExceptionOccurred|JobRetryRequested|JobReleasedAfterException|JobTimedOut $event
     ): mixed {
         try {
             $payload = $event->job->payload();
@@ -104,9 +109,14 @@ class JobStatusUpdater
 
     protected function isEvent(mixed $job): bool
     {
-        return $job instanceof JobProcessing
+        return $job instanceof JobQueueing
+            || $job instanceof JobQueued
+            || $job instanceof JobProcessing
             || $job instanceof JobProcessed
             || $job instanceof JobFailed
-            || $job instanceof JobExceptionOccurred;
+            || $job instanceof JobExceptionOccurred
+            || $job instanceof JobRetryRequested
+            || $job instanceof JobReleasedAfterException
+            || $job instanceof JobTimedOut;
     }
 }
