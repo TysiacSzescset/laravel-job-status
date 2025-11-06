@@ -16,16 +16,6 @@ namespace Yannelli\TrackJobStatus;
  * - Complete history of status changes
  *
  * @package Yannelli\TrackJobStatus
- *
- * @method int|string|null getJobStatusId() Get the job status ID
- * @method void setProgressMax(int $value) Set the maximum progress value
- * @method void setProgressNow(int $value, int $every = 1) Update current progress
- * @method void incrementProgress(int $offset = 1, int $every = 1) Increment progress by offset
- * @method void setInput(array $value) Store input data (respects track_input config)
- * @method void setOutput(array $value) Store output data (respects track_output config)
- * @method void setStatusMessage(string $message) Set a custom status message
- * @method void setChain(string $chainId, int $currentStep, int $totalJobs) Set chain tracking info
- * @method void prepareStatus(array $data = []) Initialize job status tracking (call in constructor)
  */
 trait Trackable
 {
