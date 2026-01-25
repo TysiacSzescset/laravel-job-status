@@ -37,7 +37,7 @@ abstract class EventManager
     abstract public function timedOut(JobTimedOut $event): void;
 
     /** @var class-string<JobStatus> */
-    private string $entity;
+    private JobStatus $entity;
 
     public function __construct(private readonly JobStatusUpdater $updater)
     {
