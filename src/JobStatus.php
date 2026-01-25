@@ -42,9 +42,9 @@ use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
  */
 class JobStatus extends Model
 {
-    protected string $table = 'job_statuses';
+    protected $table = 'job_statuses';
 
-    protected array $fillable = [
+    protected $fillable = [
         'job_id',
         'unique_id',
         'batch_id',

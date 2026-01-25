@@ -24,11 +24,11 @@ use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
  */
 class JobStatusHistory extends Model
 {
-    protected string $table = 'job_status_histories';
+    protected $table = 'job_status_histories';
 
     public const UPDATED_AT = null;
 
-    protected array $fillable = [
+    protected $fillable = [
         'job_status_id',
         'status',
         'status_message',
