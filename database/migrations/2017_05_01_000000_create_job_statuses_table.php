@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('job_statuses', function (Blueprint $table): void {
             $table->id();
-            $table->string('job_id')->index()->nullable();
-            $table->string('unique_id')->index()->nullable();
-            $table->string('batch_id')->nullable();
-            $table->string('chain_id')->nullable();
-            $table->string('type')->index();
-            $table->string('queue')->index()->nullable();
+            $table->string('job_id', 128)->index()->nullable();
+            $table->string('unique_id', 128)->index()->nullable();
+            $table->string('batch_id', 128)->nullable();
+            $table->string('chain_id', 128)->nullable();
+            $table->string('type', 128)->index();
+            $table->string('queue', 128)->index()->nullable();
             $table->unsignedInteger('attempts')->default(0);
             $table->unsignedInteger('progress_now')->default(0);
             $table->unsignedInteger('progress_max')->default(0);
