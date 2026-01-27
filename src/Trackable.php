@@ -171,31 +171,38 @@ trait Trackable
         /** @var class-string<JobStatus> $entityClass */
         $entityClass = app(config('job-status.model'));
 
-        // Determine if we need to synchronize status creation for uniqueness
-        $applyUniqueLock = method_exists($this, 'uniqueId') || $this instanceof \Illuminate\Contracts\Queue\ShouldBeUnique;
+        // Apply synchronization lock only for ShouldBeUnique jobs
+        $lock     = null;
+        $acquired = true;
 
-        $lock = null;
-        if ($applyUniqueLock) {
+        if ($this instanceof \Illuminate\Contracts\Queue\ShouldBeUnique) {
             $uniqueId = method_exists($this, 'uniqueId') ? $this->uniqueId() : '';
 
-            $lockKey = 'laravel_unique_job:' . static::class . ':' . serialize($uniqueId);
+            // Exact key format used by Laravel for unique jobs
+            $lockKey = 'laravel_unique_job:' . get_class($this) . $uniqueId;
 
+            // Respect custom cache store if defined
             $cache = method_exists($this, 'uniqueVia')
                 ? $this->uniqueVia()
-                : Cache::getFacadeRoot();
+                : Cache::store();
 
-            $lock = $cache->lock($lockKey, 10); // Short-lived lock for synchronization only
+            // Short lock – only for synchronizing status creation (not the full unique duration)
+            $lock = $cache->lock($lockKey, 10);
+
+            $acquired = $lock->get();
         }
 
-        // Use block/acquire pattern – if lock cannot be acquired, skip creation entirely (prevents orphans)
-        $acquired = $lock ? $lock->get() : true;
-
+        // If lock not acquired (duplicate dispatch), skip status creation entirely
         if (! $acquired) {
             $this->shouldTrack = false;
+
+            if ($lock) {
+                $lock->release(); // Safety – though block get usually handles it
+            }
+
             return;
         }
 
-        // Execute creation inside the lock scope (auto-releases on exit or expiration)
         try {
             // Capture unique_id from job's uniqueId() method if it exists
             if (method_exists($this, 'uniqueId')) {
@@ -236,26 +243,10 @@ trait Trackable
             // If status creation fails for any reason, disable tracking to prevent further errors
             $this->shouldTrack = false;
         } finally {
-            // Ensure lock is released if we acquired it (block get releases automatically, but safety)
+            // Release the short lock if we acquired it
             if ($lock && $acquired) {
                 $lock->release();
             }
-        }
-    }
-
-    /**
-     * Prepare status but start as 'executing' (for delayed creation in handle()).
-     */
-    public function prepareForExecution(array $extra = [])
-    {
-        $this->prepareStatus($extra);
-
-        if ($this->jobStatus) {
-            $this->jobStatus->update([
-                'status'     => 'executing',
-                'started_at' => now(),
-            ]);
-            $this->jobStatus->refresh();
         }
     }
 
