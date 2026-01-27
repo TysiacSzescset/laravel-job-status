@@ -1,8 +1,10 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace Yannelli\TrackJobStatus;
+
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Trait for tracking job status, progress, and lifecycle events.
@@ -20,7 +22,7 @@ namespace Yannelli\TrackJobStatus;
 trait Trackable
 {
     /** @var int|string|null The ID of the JobStatus record */
-    protected int|string|null $statusId = null;
+    protected int | string | null $statusId = null;
 
     /** @var int Current progress value */
     protected int $progressNow = 0;
@@ -85,7 +87,7 @@ trait Trackable
      */
     protected function setInput(array $value): void
     {
-        if (!config('job-status.track_input', true)) {
+        if (! config('job-status.track_input', true)) {
             return;
         }
 
@@ -101,7 +103,7 @@ trait Trackable
      */
     protected function setOutput(array $value): void
     {
-        if (!config('job-status.track_output', true)) {
+        if (! config('job-status.track_output', true)) {
             return;
         }
 
@@ -130,9 +132,9 @@ trait Trackable
     protected function setChain(string $chainId, int $currentStep, int $totalJobs): void
     {
         $this->update([
-            'chain_id' => $chainId,
+            'chain_id'     => $chainId,
             'current_step' => $currentStep,
-            'total_jobs' => $totalJobs,
+            'total_jobs'   => $totalJobs,
         ]);
     }
 
@@ -145,7 +147,7 @@ trait Trackable
     protected function update(array $data): void
     {
         // Guard against updates when tracking is disabled
-        if (!$this->shouldTrack || $this->statusId === null) {
+        if (! $this->shouldTrack || $this->statusId === null) {
             return;
         }
 
@@ -162,52 +164,98 @@ trait Trackable
      */
     protected function prepareStatus(array $data = []): void
     {
-        if (!$this->shouldTrack) {
+        if (! $this->shouldTrack) {
             return;
         }
 
         /** @var class-string<JobStatus> $entityClass */
         $entityClass = app(config('job-status.model'));
 
-        // Capture unique_id from job's uniqueId() method if it exists
-        if (method_exists($this, 'uniqueId')) {
-            try {
-                $uniqueId = $this->uniqueId();
-                if ($uniqueId !== null && !isset($data['unique_id'])) {
-                    $data['unique_id'] = $uniqueId;
-                }
-            } catch (\Throwable $e) {
-                // uniqueId() may throw - gracefully handle
-            }
+        // Determine if we need to synchronize status creation for uniqueness
+        $applyUniqueLock = method_exists($this, 'uniqueId') || $this instanceof \Illuminate\Contracts\Queue\ShouldBeUnique;
+
+        $lock = null;
+        if ($applyUniqueLock) {
+            $uniqueId = method_exists($this, 'uniqueId') ? $this->uniqueId() : '';
+
+            $lockKey = 'laravel_unique_job:' . static::class . ':' . serialize($uniqueId);
+
+            $cache = method_exists($this, 'uniqueVia')
+                ? $this->uniqueVia()
+                : Cache::getFacadeRoot();
+
+            $lock = $cache->lock($lockKey, 10); // Short-lived lock for synchronization only
         }
 
-        // Capture batch information if job is part of a batch
-        if (method_exists($this, 'batch') && !isset($data['batch_id'])) {
-            try {
-                $batch = $this->batch();
-                if ($batch !== null) {
-                    $data['batch_id'] = $batch->id;
-                    $data['total_jobs'] = $batch->totalJobs;
-                    // Note: processedJobs() may have race conditions in concurrent processing
-                    // This is a best-effort counter and may not be perfectly sequential
-                    $data['current_step'] = $batch->processedJobs() + 1;
-                }
-            } catch (\Throwable $e) {
-                // Batch not available yet, skip
-            }
+        // Use block/acquire pattern – if lock cannot be acquired, skip creation entirely (prevents orphans)
+        $acquired = $lock ? $lock->get() : true;
+
+        if (! $acquired) {
+            $this->shouldTrack = false;
+            return;
         }
 
-        $data = array_merge(['type' => $this->getDisplayName()], $data);
-
+        // Execute creation inside the lock scope (auto-releases on exit or expiration)
         try {
+            // Capture unique_id from job's uniqueId() method if it exists
+            if (method_exists($this, 'uniqueId')) {
+                try {
+                    $uniqueId = $this->uniqueId();
+                    if ($uniqueId !== null && ! isset($data['unique_id'])) {
+                        $data['unique_id'] = $uniqueId;
+                    }
+                } catch (\Throwable $e) {
+                    // uniqueId() may throw - gracefully handle
+                }
+            }
+
+            // Capture batch information if job is part of a batch
+            if (method_exists($this, 'batch') && ! isset($data['batch_id'])) {
+                try {
+                    $batch = $this->batch();
+                    if ($batch !== null) {
+                        $data['batch_id']   = $batch->id;
+                        $data['total_jobs'] = $batch->totalJobs;
+                        // Note: processedJobs() may have race conditions in concurrent processing
+                        // This is a best-effort counter and may not be perfectly sequential
+                        $data['current_step'] = $batch->processedJobs() + 1;
+                    }
+                } catch (\Throwable $e) {
+                    // Batch not available yet, skip
+                }
+            }
+
+            $data = array_merge(['type' => $this->getDisplayName()], $data);
+
             /** @var JobStatus $status */
             $status = $entityClass::on(config('job-status.database_connection'))
                 ->create($data);
 
             $this->statusId = $status->getKey();
         } catch (\Throwable $e) {
-            // If status creation fails, disable tracking to prevent further errors
+            // If status creation fails for any reason, disable tracking to prevent further errors
             $this->shouldTrack = false;
+        } finally {
+            // Ensure lock is released if we acquired it (block get releases automatically, but safety)
+            if ($lock && $acquired) {
+                $lock->release();
+            }
+        }
+    }
+
+    /**
+     * Prepare status but start as 'executing' (for delayed creation in handle()).
+     */
+    public function prepareForExecution(array $extra = [])
+    {
+        $this->prepareStatus($extra);
+
+        if ($this->jobStatus) {
+            $this->jobStatus->update([
+                'status'     => 'executing',
+                'started_at' => now(),
+            ]);
+            $this->jobStatus->refresh();
         }
     }
 
@@ -219,7 +267,7 @@ trait Trackable
      */
     protected function getDisplayName(): string
     {
-        return method_exists($this, 'displayName') ? $this->displayName() : static::class;
+        return method_exists($this, 'displayName') ? $this->displayName(): static::class;
     }
 
     /**
@@ -227,7 +275,7 @@ trait Trackable
      *
      * @return int|string|null The job status ID, or null if not tracking
      */
-    public function getJobStatusId(): int|string|null
+    public function getJobStatusId(): int | string | null
     {
         return $this->statusId;
     }
