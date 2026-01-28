@@ -179,7 +179,7 @@ trait Trackable
             $uniqueId = method_exists($this, 'uniqueId') ? $this->uniqueId() : '';
 
             // Exact key format used by Laravel for unique jobs
-            $lockKey = 'laravel_unique_job:' . get_class($this) . $uniqueId;
+            $lockKey = 'laravel_unique_job:' . get_class($this) . ':' . $uniqueId;
 
             // Respect custom cache store if defined
             $cache = method_exists($this, 'uniqueVia')
