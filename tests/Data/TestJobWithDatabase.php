@@ -2,18 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Imtigger\LaravelJobStatus\Tests\Data;
+namespace Yannelli\TrackJobStatus\Tests\Data;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Connection;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\Concerns\InteractsWithDatabase;
-use Illuminate\Foundation\Testing\Constraints\HasInDatabase;
 use Illuminate\Queue\InteractsWithQueue;
-use Imtigger\LaravelJobStatus\Tests\Feature\TestCase;
-use Imtigger\LaravelJobStatus\Trackable;
-use Imtigger\LaravelJobStatus\TrackableJob;
+use Yannelli\TrackJobStatus\Tests\Feature\TestCase;
+use Yannelli\TrackJobStatus\Trackable;
+use Yannelli\TrackJobStatus\TrackableJob;
 
 class TestJobWithDatabase implements ShouldQueue, TrackableJob
 {
@@ -30,12 +29,14 @@ class TestJobWithDatabase implements ShouldQueue, TrackableJob
 
     public function handle(): void
     {
-        TestCase::assertThat(
-            'job_statuses',
-            new HasInDatabase($this->getConnection(), [
-                'id' => $this->getJobStatusId(),
-            ] + $this->data)
-        );
+        // Verify the job status record exists with the expected data
+        $result = $this->getConnection()
+            ->table('job_statuses')
+            ->where('id', $this->getJobStatusId())
+            ->where($this->data)
+            ->exists();
+
+        TestCase::assertTrue($result, 'Job status record not found with expected data');
     }
 
     protected function getConnection(): Connection

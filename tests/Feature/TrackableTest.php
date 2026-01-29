@@ -14,7 +14,7 @@ use Yannelli\TrackJobStatus\Tests\Data\TestJobWithoutTracking;
 
 class TrackableTest extends TestCase
 {
-    protected function getPackageProviders($app)
+    protected function getPackageProviders($app): array
     {
         return array_merge(parent::getPackageProviders($app), [
             LaravelJobStatusBusServiceProvider::class,

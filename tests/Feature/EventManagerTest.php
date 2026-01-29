@@ -6,7 +6,6 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Artisan;
 use Yannelli\TrackJobStatus\EventManagers\DefaultEventManager;
 use Yannelli\TrackJobStatus\EventManagers\LegacyEventManager;
-use Yannelli\TrackJobStatus\JobStatus;
 use Yannelli\TrackJobStatus\Tests\Data\TestJob;
 use Yannelli\TrackJobStatus\Tests\Data\TestJobWithException;
 
@@ -36,11 +35,11 @@ class EventManagerTest extends TestCase
         ]);
     }
 
-    public function managerProvider()
+    public static function managerProvider(): array
     {
         return [
-            [DefaultEventManager::class, JobStatus::STATUS_FAILED],
-            [LegacyEventManager::class, JobStatus::STATUS_RETRYING],
+            [DefaultEventManager::class, 'failed'],
+            [LegacyEventManager::class, 'retrying'],
         ];
     }
 }

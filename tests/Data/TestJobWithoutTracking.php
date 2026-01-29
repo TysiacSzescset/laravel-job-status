@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Imtigger\LaravelJobStatus\Tests\Data;
+namespace Yannelli\TrackJobStatus\Tests\Data;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Imtigger\LaravelJobStatus\Trackable;
-use Imtigger\LaravelJobStatus\TrackableJob;
+use Yannelli\TrackJobStatus\Trackable;
+use Yannelli\TrackJobStatus\TrackableJob;
 
 class TestJobWithoutTracking implements ShouldQueue, TrackableJob
 {

@@ -15,7 +15,12 @@ use Illuminate\Queue\Events\JobRetryRequested;
 use Illuminate\Queue\Events\JobTimedOut;
 use Yannelli\TrackJobStatus\Enums\JobStatusEnum;
 
-class DefaultEventManager extends EventManager
+/**
+ * Legacy event manager that always marks failures as RETRYING.
+ * This was the old behavior before proper failure handling was implemented.
+ * Kept for backward compatibility.
+ */
+class LegacyEventManager extends EventManager
 {
     public function queueing(JobQueueing $event): void
     {
@@ -43,32 +48,26 @@ class DefaultEventManager extends EventManager
     {
         if (!$event->job->hasFailed()) {
             $this->getUpdater()->update($event, [
-                'status' => $event->job->isReleased() ? JobStatusEnum::RETRYING->value : JobStatusEnum::FINISHED->value,
+                'status' => JobStatusEnum::FINISHED->value,
                 'finished_at' => now(),
             ]);
-        } else {
-            // Job failed - check if this is a permanent failure (no more retries)
-            if ($event->job->attempts() >= $event->job->maxTries()) {
-                $this->getUpdater()->update($event, [
-                    'status' => JobStatusEnum::FAILED->value,
-                    'finished_at' => now(),
-                ]);
-            }
         }
     }
 
     public function failing(JobFailed $event): void
     {
+        // Legacy behavior: always mark as RETRYING regardless of attempts
         $this->getUpdater()->update($event, [
-            'status' => $event->job->hasFailed() ? JobStatusEnum::FAILED->value : JobStatusEnum::RETRYING->value,
+            'status' => JobStatusEnum::RETRYING->value,
             'finished_at' => now(),
         ]);
     }
 
     public function exceptionOccurred(JobExceptionOccurred $event): void
     {
+        // Legacy behavior: always mark as RETRYING regardless of attempts
         $this->getUpdater()->update($event, [
-            'status' => $event->job->hasFailed() ? JobStatusEnum::FAILED->value : JobStatusEnum::RETRYING->value,
+            'status' => JobStatusEnum::RETRYING->value,
             'finished_at' => now(),
         ]);
     }

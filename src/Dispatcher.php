@@ -15,7 +15,7 @@ use Illuminate\Contracts\Container\Container;
  *
  * @package Yannelli\TrackJobStatus
  */
-readonly class Dispatcher extends \Illuminate\Bus\Dispatcher
+class Dispatcher extends \Illuminate\Bus\Dispatcher
 {
     /**
      * Create a new dispatcher instance.
